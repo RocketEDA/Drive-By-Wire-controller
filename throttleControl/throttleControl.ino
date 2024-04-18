@@ -1,17 +1,29 @@
-#include <arduino-timer.h>0
+#include <arduino-timer.h>
+#include <Adafruit_ADS1X15.h>
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
 
-//l298n pins
-#define EN_pin 3
-#define IN1_pin 4
-#define IN2_pin 7
+
+
+////////////////////////////////////Throttle Body//////////////////////////////////////
+#define PWM_FREQ 500    //tb pwm frequency
+
+//PCA9685 pins
+#define LPWM_pin 6      //PWM pin on PCA9685
+#define RPWM_pin 7      //PWM pin on PCA9685
+#define EN_pin 4        //R_EN/L_EN tied together
+//#define RIS_pin         //overcurrent alarm right
+//#define LIS_pin         //overcurrent alarm right
 
 #define CLOSE_VAL 127 //hold close force (0-255), adds to springback
 
-//programming macros
-#define OPEN 1
-#define CLOSE 0
+#define PROPGAIN 32 //proportional gain, motor force (12b) = (TB TPS(10b) - pedal pos (10b)) * PROPGAIN
+#define MINPWM 1600     //minimum PWM for the motor to having action
+#define PWMFREQ 500     //servo pwm frequency
 
-//TPS1/2 variation max
+//////////////////////////////////////Throttle Position sensor - include TB TPS///////////////////
+
+//TPS 1/2 maximum variation -- used for error checking if one redundant sensor has failed
 #define TBTPS_var 100
 #define PTPS_var 100
 
@@ -23,7 +35,15 @@
 #define PTPS1_pin A2
 #define PTPS2_pin A3
 
+//////////////////////////////////////Other
+//programming macros
+#define OPEN 1
+#define CLOSE 0
+
 #define INUM 100  //PID loop interval in uS
+
+
+
 
 //throttle body tps sensor
 long tbtps1_val = 0;
@@ -52,14 +72,14 @@ long ptps2_CLOSE = 0;
 long ptps2_range = 0;   //range = open-close. precalculate for faster runtime
 
 //throttle position
-double throttlePos = 120;
+double throttlePos = 0;
 
 double mot_pwm = 0;  //motor force control, 9 bit, 0-127 is close, 128-255 is open
 
 double tbAvg = 0; //throttle body average reading
 
 
-
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 Timer<1, micros> u_timer;
 
@@ -70,8 +90,8 @@ Timer<1, micros> u_timer;
 void readTPS()
 {
   //read and calculate current motor position
-  long tbTemp1 = abs(((analogRead(TBTPS1_pin) - tbtps1_CLOSE) * 255) / tbtps1_range);
-  long tbTemp2 = abs(((tbtps2_CLOSE - analogRead(TBTPS2_pin)) * 255) / tbtps2_range);
+  long tbTemp1 = abs(((analogRead(TBTPS1_pin) - tbtps1_CLOSE) * 1024) / tbtps1_range);
+  long tbTemp2 = abs(((tbtps2_CLOSE - analogRead(TBTPS2_pin)) * 1024) / tbtps2_range);
   //average between the two, use
   tbAvg = abs((tbTemp1 + tbTemp2) / 2);
 
@@ -80,52 +100,75 @@ void readTPS()
     //error
     while (1)
     {
-      Serial.println("setPos: ERROR INVALID TPS " + String(tbTemp1) + "\t" +  String(tbTemp2) + "\t" + String(tbtps1_val) + "\t" + String(tbtps2_val) + "\t" + String(tbAvg) + "\t" + String(throttlePos));
-      //read and calculate current motor position
-      long tbTemp1 = abs(((analogRead(TBTPS1_pin) - tbtps1_CLOSE) * 255) / tbtps1_range);
-      long tbTemp2 = abs(((tbtps2_CLOSE - analogRead(TBTPS2_pin)) * 255) / tbtps2_range);
+      tbTemp1 = abs(((analogRead(TBTPS1_pin) - tbtps1_CLOSE) * 255) / tbtps1_range);
+      tbTemp2 = abs(((tbtps2_CLOSE - analogRead(TBTPS2_pin)) * 255) / tbtps2_range);
       //average between the two, use
       tbAvg = abs((tbTemp1 + tbTemp2) / 2);
-      writeMot(0);
+      Serial.println("readTPS: ERROR INVALID TPS " + String(tbTemp1) + "\t" +  String(tbTemp2) + "\t" + String(tbtps1_val) + "\t" + String(tbtps2_val) + "\t" + String(tbAvg) + "\t" + String(throttlePos));
+      //read and calculate current motor position
+      emergencyStop();
     }
   }
 
   //pedal tps sensor
-  //read and calculate current pedal position
-  long pTemp1 = abs(((analogRead(PTPS1_pin) - ptps1_CLOSE) * 255) / ptps1_range);
-  long pTemp2 = abs(((analogRead(PTPS2_pin) - ptps2_CLOSE) * 255) / ptps2_range);
+  //read and calculate current pedal position, based on range, pos close and pos open
+  long pTemp1 = abs(((analogRead(PTPS1_pin) - ptps1_CLOSE) * 1024) / ptps1_range);
+  long pTemp2 = abs(((analogRead(PTPS2_pin) - ptps2_CLOSE) * 1024) / ptps2_range);
   //average between the two, use
   throttlePos = abs((pTemp1 + pTemp2) / 2);
 
-  Serial.println(String(pTemp1) + "\t" + String(pTemp2) + "\t" + String(throttlePos));
+  //Serial.println(String(pTemp1) + "\t" + String(pTemp2) + "\t" + String(throttlePos));
 
 
 }
 /*
+   emergencyStop
+   call this when in error state
+   concentrates the numbers in one area, decreases chance for error
+*/
+void emergencyStop()
+{
+  digitalWrite(EN_pin, LOW);
+}
+/*
+   writeMot
    writes to motor
-   val: 9 bit, 0-127 is close, 129-255 is open
+   val: 13 bit, 0-4095 is close, 4096 is hold, 4097-8192 is open
 */
 void writeMot(long val)
 {
-  if (val > 255 || val < -1)
+  /*
+   * RPWM+ LPWM- to open
+   */
+  if (val > 8192 || val < 0)
   {
     Serial.println("writeMot: ERROR VAL EXCEEDED " + String(val));
-    analogWrite(EN_pin, 0);
+    emergencyStop();
     while (1);
   }
-  else if (val == -1)
+  else if (val < 4096)
   {
-    //hold close
-    digitalWrite(IN2_pin, LOW);
-    digitalWrite(IN1_pin, HIGH);
-    analogWrite(EN_pin, CLOSE_VAL);
+    //close
+    digitalWrite(EN_pin, HIGH);
+    pwm.setPWM(RPWM_pin, 0, 0);
+    pwm.setPWM(LPWM_pin, 0, 4095 - val);
+    Serial.println("CLOSE: " + String(val));
   }
-  else
+  else if (val > 4096)
   {
     //open
-    digitalWrite(IN2_pin, HIGH);
-    digitalWrite(IN1_pin, LOW);
-    analogWrite(EN_pin, val);
+    digitalWrite(EN_pin, HIGH);
+    pwm.setPWM(RPWM_pin, 0, val - 4097);
+    pwm.setPWM(LPWM_pin, 0, 0);
+    Serial.println("OPEN: " + String(val));
+  }
+  else if (val == 4096)
+  {
+    //hold
+    digitalWrite(EN_pin, HIGH);
+    pwm.setPWM(RPWM_pin, 0, 0);
+    pwm.setPWM(LPWM_pin, 0, 0);
+    Serial.println("HOLD: " + String(val));
   }
 
 }
@@ -140,14 +183,21 @@ bool setPos()
   readTPS();
   if (tbAvg < throttlePos)
   {
-    mot_pwm = 100 + (2 * (throttlePos - tbAvg));
+    if (throttlePos > 15)
+    {
+      mot_pwm = 4096 + (PROPGAIN * (throttlePos - tbAvg));
+    }
+    else
+    {
+      mot_pwm = 4096;  //off throttle noise, just filter it out
+    }
   }
   else if (tbAvg > throttlePos)
   {
-    mot_pwm = 0;
+    mot_pwm = 4096 + (PROPGAIN * (throttlePos - tbAvg));
   }
-  mot_pwm = constrain(mot_pwm, 0, 255);
-  //Serial.println(String(mot_pwm) + "\t" + String(tbAvg));
+  mot_pwm = constrain(mot_pwm, 0, 8192);
+  Serial.println(String(mot_pwm) + "\t" + String(tbAvg) + "\t" + String(throttlePos));
   writeMot(mot_pwm);
   return true;
 }
@@ -159,7 +209,7 @@ void initSequence()
   Serial.println("initialization sequence");
   //////////////////////////////TB setup
   //open motor
-  writeMot(255);
+  writeMot(8192);
   delay(500);
 
   //read TB TPS values
@@ -181,7 +231,7 @@ void initSequence()
 
   Serial.println("TPS1OPEN: " + String(tbtps1_OPEN) + " TPS1CLOSE: " + String(tbtps1_CLOSE) + " TPS2OPEN: " + String(tbtps2_OPEN) + " TPS2CLOSE: " + String(tbtps2_CLOSE));
   Serial.println("tbtps1_range: " + String(tbtps1_range) + " tbtps2_range: " + String(tbtps2_range));
-  writeMot(0); //relax motor
+  writeMot(4096); //relax motor
 
   //////////////////EPEDAL SETUP
   Serial.println("Setting ePedal min. Release throttle, press s to continue");
@@ -193,7 +243,7 @@ void initSequence()
   ptps1_CLOSE = analogRead(PTPS1_pin);
   ptps2_CLOSE = analogRead(PTPS2_pin);
 
-  Serial.println("Setting ePedal min. Depress throttle all the way, press s to continue");
+  Serial.println("Setting ePedal max. Depress throttle all the way, press s to continue");
   a = 'a';
   while (a != 's')
   {
@@ -210,14 +260,16 @@ void initSequence()
 }
 
 void setup() {
-  // put your setup code  here, to run once:
   Serial.begin(115200);
-  Serial.setTimeout(20000000000);
-  pinMode(IN1_pin, OUTPUT);
-  pinMode(IN2_pin, OUTPUT);
+  pwm.begin();
+  pwm.setOscillatorFrequency(25000000);
+  pwm.setPWMFreq(PWMFREQ);
+  Wire.setClock(400000);
+
+  pinMode(EN_pin, OUTPUT);
   initSequence();
 
-  //u_timer.every(INUM, setPos);
+  u_timer.every(INUM, setPos);
 }
 void loop() {
   setPos();
