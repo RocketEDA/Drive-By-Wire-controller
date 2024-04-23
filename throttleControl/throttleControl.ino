@@ -10,8 +10,8 @@
 #define PWM_FREQ 500    //tb pwm frequency
 
 //PCA9685 pins
-#define LPWM_pin 6      //PWM pin on PCA9685
-#define RPWM_pin 7      //PWM pin on PCA9685
+#define LPWM_pin 0      //PWM pin on PCA9685
+#define RPWM_pin 1      //PWM pin on PCA9685
 #define EN_pin 4        //R_EN/L_EN tied together
 //#define RIS_pin         //overcurrent alarm right
 //#define LIS_pin         //overcurrent alarm right
@@ -22,7 +22,7 @@
 #define MINPWM 1600     //minimum PWM for the motor to having action
 #define PWMFREQ 500     //servo pwm frequency
 
-//////////////////////////////////////Throttle Position sensor - include TB TPS///////////////////
+//////////////////////////////////////TPS///////////////////
 
 //TPS 1/2 maximum variation -- used for error checking if one redundant sensor has failed
 #define TBTPS_var 200
