@@ -1,5 +1,5 @@
 # DBW-controller
-Drive by wire controller, allows DBW setups in all vehicles
+Drive by wire controller, maps throttle to throttle body 1:1 with idle control
 
 Code is fully commented.
 
