@@ -4,6 +4,7 @@ DISCLAIMER: Please read the LICENSE file. Electronic throttle body control is no
 As stated in the LICENSE file, by using this project in any way, you agree to take on full responsibilities to damages caused by this project.
 
 Drive by wire controller, maps throttle to throttle body 1:1 with idle control
+![PXL_20240426_063848482 MP](https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/7ef811e8-0b7b-4cad-bd3b-003bfd3a8697)
 
 For my application I used a Chrysler/mercedes 75mm throttle body with a corvette c6 throttle pedal.
 P/N 0280750570
@@ -20,6 +21,14 @@ For servo drive a BTS7960 module from amazon is used.
 ![image](https://github.com/joesphan/DBW-controller/assets/38387138/a67a781d-94bb-44e6-97f9-704be2bd6566)
 PCA9685 is used for better PWM control. PWM0 and PWM is used for the BTS, the rest are open
 ![image](https://github.com/joesphan/DBW-controller/assets/38387138/8d0d1d98-86ba-4d6f-be9b-3c5f5dc71ace)
+
+Optionally popuplate R11 and R12. The chrylser TB used a HAR3726 magnetic sensor which specifies for a 10k RL
+![image](https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/7eb9880c-01ae-4ac9-8a78-45ac8a8d3134)
+
+Assembly notes:
+The capacitor and terminal blocks will need to moved to the other side on the BTS7960 to clear. I took this opportunity to upsize the capacitor as well, not sure if there's any appreciatable benefit.
+![PXL_20240426_063914383](https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/6cba1674-f8b4-48e1-93e9-267b8330019c)
+
 
 J2 and J4 connect to the TB TPS and e-pedal TPS.
 
