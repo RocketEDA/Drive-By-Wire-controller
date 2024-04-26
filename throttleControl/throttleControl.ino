@@ -12,7 +12,7 @@
 //PCA9685 pins
 #define LPWM_pin 0      //PWM pin on PCA9685
 #define RPWM_pin 1      //PWM pin on PCA9685
-#define EN_pin 4        //R_EN/L_EN tied together
+#define EN_pin 3        //R_EN/L_EN tied together
 //#define RIS_pin         //overcurrent alarm right
 //#define LIS_pin         //overcurrent alarm right
 
@@ -150,8 +150,8 @@ bool calculatePTPS()
   //read and calculate current pedal position, based on range, pos close and pos open
   float pTemp1 = abs(((ptps1_val - ptps1_CLOSE) * 1023) / ptps1_range);
   float pTemp2 = abs(((ptps2_val - ptps2_CLOSE) * 1023) / ptps2_range);
-  throttlePos = ((abs((pTemp1 + pTemp2) / 2) / 1023) * (1023 - idle_pos)) + idle_pos;    //average and scale with idle position
-  throttlePos = constrain(throttlePos, idle_pos, 1023);
+  throttlePos = idle_pos + ((abs((pTemp1 + pTemp2) / 2.0) / 1023.0) * (1023 - idle_pos));    //average and scale with idle position
+  throttlePos = constrain(throttlePos, 0, 1023);
   if (abs(pTemp1 - pTemp2) > PTPS_var)
   {
     //error
@@ -278,7 +278,6 @@ void initSequence()
      allows setting calibration values if it is
      else reads values from eeprom
   */
-  float idle_pos = 0;
   bool setup_en = digitalRead(SETUP_pin);
   Serial.println("Setup mode: " + String(setup_en));
   if (setup_en)
