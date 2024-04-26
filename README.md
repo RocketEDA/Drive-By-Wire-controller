@@ -29,6 +29,12 @@ Assembly notes:
 The capacitor and terminal blocks will need to moved to the other side on the BTS7960 to clear. I took this opportunity to upsize the capacitor as well, not sure if there's any appreciatable benefit.
 ![PXL_20240426_063914383](https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/6cba1674-f8b4-48e1-93e9-267b8330019c)
 
-
 J2 and J4 connect to the TB TPS and e-pedal TPS.
+Both e-pedal TPS's are positive direction, aka voltage increases as TPS approaches "open"
+TB TPS has one signal inverted. To change this the calculation can be modified:
+<img width="1093" alt="image" src="https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/6f09399e-d704-457d-9371-b631f7389733">
+
+Upon first run, the "setup" switch should be set. Plugin a USB and set baud to 115200 to follow setup instructions. The potentiometer sets idle (minimum) throttle position. The equation is as follows. Insert a DMM probe between GND and IDLE to measure the pot's voltage. The idle % equation is: Idle position % = (IDLE voltage / 5) * (MAX_IDLE_TB_OPEN / 1023) * 100
+![image](https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/0bfbf5d1-2be2-4a6b-aa37-aaa149661467)
+![image](https://github.com/RocketEDA/Drive-By-Wire-controller/assets/38387138/4cfe2af5-3155-49a8-9cdc-dd3464e9fc7c)
 
