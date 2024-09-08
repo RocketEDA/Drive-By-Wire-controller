@@ -26,7 +26,7 @@
 
 //TPS 1/2 maximum variation -- used for error checking if one redundant sensor has failed
 #define TBTPS_var 200
-#define PTPS_var 200
+#define PTPS_var 300
 
 //throttle body pot pins
 #define TBTPS1_pin A0
@@ -109,8 +109,9 @@ void readTBTPS()
 */
 void readPTPS()
 {
-  ptps1_val = analogRead(PTPS1_pin);
-  ptps2_val = analogRead(PTPS2_pin);
+  //invert if pins are inversed
+  ptps1_val = analogRead(PTPS2_pin);
+  ptps2_val = analogRead(PTPS1_pin);
 }
 /*
    calculateTBTPS
@@ -125,15 +126,18 @@ bool calculateTBTPS()
   float tbTemp2 = abs(((tbtps2_CLOSE - tbtps2_val) * 1024) / tbtps2_range);
   //average between the two, use
   tbAvg = abs((tbTemp1 + tbTemp2) / 2);
+  //Serial.println("tbtemp1: " + String(tbTemp1) + "\ttbtemp2: " +  String(tbTemp2));
   if (abs(tbTemp1 - tbTemp2) > TBTPS_var)
   {
     //error
     Serial.println("readTPS: ERROR INVALID TBTPS " + String(tbTemp1) + "\t" +  String(tbTemp2));
     //read and calculate current motor position
+    
     while (1)
     {
       emergencyStop();
     }
+    
   }
   return true;
 }
@@ -157,10 +161,12 @@ bool calculatePTPS()
     //error
     Serial.println("readTPS: ERROR INVALID PTPS " + String(pTemp1) + "\t" +  String(pTemp2));
     //read and calculate current motor position
+    
     while (1)
     {
       emergencyStop();
     }
+    
   }
   //Serial.println(String(pTemp1) + "\t" + String(pTemp2) + "\t" + String(throttlePos));
   return true;
